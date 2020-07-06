@@ -15,7 +15,7 @@ public protocol PostRequestable {
     var url:String { get }
 }
 
-extension PostRequestable {
+public extension PostRequestable {
     func body(boundary:String) -> Data {
         var data = Data()
         Mirror(reflecting: self).children.forEach{

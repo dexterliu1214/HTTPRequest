@@ -14,7 +14,7 @@ public protocol Requestable {
     var url:String { get }
 }
 
-extension Requestable
+public extension Requestable
 {
     var queryItems:[URLQueryItem] {
         Mirror(reflecting: self).children.map{

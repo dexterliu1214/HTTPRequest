@@ -21,7 +21,7 @@ public protocol HTTPRequestable
     func post<T:PostRequestable>(_ request:T) -> Result<T.Responsable, HTTPRequestableError>
 }
 
-extension HTTPRequestable
+public extension HTTPRequestable
 {
     func get<T:Requestable>(_ request:T) -> Result<T.Responsable, HTTPRequestableError> {
         guard var uc = URLComponents(string: request.url) else {
