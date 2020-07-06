@@ -16,7 +16,7 @@ public protocol PostRequestable {
 }
 
 public extension PostRequestable {
-    public func body(boundary:String) -> Data {
+    func body(boundary:String) -> Data {
         var data = Data()
         Mirror(reflecting: self).children.forEach{
             data.appendString(string: "--\(boundary)\r\n")

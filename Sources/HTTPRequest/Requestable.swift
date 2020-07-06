@@ -16,7 +16,7 @@ public protocol Requestable {
 
 public extension Requestable
 {
-    public var queryItems:[URLQueryItem] {
+    var queryItems:[URLQueryItem] {
         Mirror(reflecting: self).children.map{
             URLQueryItem(name: $0.label!, value: ($0.value as! String))
         }
