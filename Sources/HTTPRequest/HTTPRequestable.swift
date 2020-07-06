@@ -23,7 +23,7 @@ public protocol HTTPRequestable
 
 public extension HTTPRequestable
 {
-    func get<T:Requestable>(_ request:T) -> Result<T.Responsable, HTTPRequestableError> {
+    public func get<T:Requestable>(_ request:T) -> Result<T.Responsable, HTTPRequestableError> {
         guard var uc = URLComponents(string: request.url) else {
             return .failure(.url)
         }
@@ -55,7 +55,7 @@ public extension HTTPRequestable
         return result
     }
     
-    func post<T:PostRequestable>(_ request:T) -> Result<T.Responsable, HTTPRequestableError> {
+    public func post<T:PostRequestable>(_ request:T) -> Result<T.Responsable, HTTPRequestableError> {
         guard let url = URL(string: request.url) else {
             return .failure(.url)
         }
