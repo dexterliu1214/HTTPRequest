@@ -47,6 +47,7 @@ public extension Requestable
         URLSession.shared.dataTask(with: url) { (data, _, error) in
             if let error = error {
                 result = .failure(.server(error))
+                semaphore.signal()
                 return
             }
             guard let data = data else { return }
@@ -55,19 +56,20 @@ public extension Requestable
                 let response = try JSONDecoder().decode(ResponseStatus.self, from: data)
                 if response.status == 0 {
                     result = .failure(.server(response.err ?? "unknow error"))
+                    semaphore.signal()
                     return
                 }
                 
                 let obj = try JSONDecoder().decode(Responsable.self, from: data)
                 result = .success(obj)
+                semaphore.signal()
             } catch {
                 if let jsonString = data.jsonString {
                     print(jsonString)
                 }
                 result = .failure(.parse)
+                semaphore.signal()
             }
-            
-            semaphore.signal()
         }.resume()
         _ = semaphore.wait(wallTimeout: .distantFuture)
         return result
