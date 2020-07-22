@@ -9,6 +9,11 @@
 import Foundation
 import UIKit
 
+struct ResponseStatus:Decodable {
+    var status:Int
+    var err:String?
+}
+
 public protocol Requestable {
     associatedtype Responsable: Decodable
     var url:String { get }
@@ -16,6 +21,10 @@ public protocol Requestable {
     func body(boundary:String) -> Data
     func get() -> Result<Responsable, HTTPRequestError>
     func post() -> Result<Responsable, HTTPRequestError>
+}
+
+extension String: LocalizedError {
+    public var errorDescription: String? { return self }
 }
 
 public extension Requestable
@@ -43,6 +52,12 @@ public extension Requestable
             guard let data = data else { return }
             
             do {
+                let response = try JSONDecoder().decode(ResponseStatus.self, from: data)
+                if response.status == 0 {
+                    result = .failure(.server(response.err ?? "unknow error"))
+                    return
+                }
+                
                 let obj = try JSONDecoder().decode(Responsable.self, from: data)
                 result = .success(obj)
             } catch {
