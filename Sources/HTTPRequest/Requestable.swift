@@ -19,10 +19,11 @@ public protocol Requestable {
     var url:String { get }
     var queryItems:[URLQueryItem] { get }
     func body(boundary:String) -> Data
-    func get() -> Result<Responsable, HTTPRequestError>
-    func post() -> Result<Responsable, HTTPRequestError>
+    func get() -> Result<Responsable, Error>
+    func post() -> Result<Responsable, Error>
 }
 
+extension String:Error{}
 extension String: LocalizedError {
     public var errorDescription: String? { return self }
 }
@@ -35,18 +36,18 @@ public extension Requestable
         }
     }
     
-    func get() -> Result<Responsable, HTTPRequestError> {
+    func get() -> Result<Responsable, Error> {
         guard var uc = URLComponents(string: url) else {
-            return .failure(.url)
+            return .failure("url error")
         }
         uc.queryItems = queryItems
-        var result: Result<Responsable, HTTPRequestError>!
-        guard let url = uc.url else { return  .failure(.url) }
+        var result: Result<Responsable, Error>!
+        guard let url = uc.url else { return  .failure("url error") }
         let semaphore = DispatchSemaphore(value: 0)
         print(url.absoluteURL)
         URLSession.shared.dataTask(with: url) { (data, _, error) in
             if let error = error {
-                result = .failure(.server(error))
+                result = .failure(error)
                 semaphore.signal()
                 return
             }
@@ -55,7 +56,7 @@ public extension Requestable
             do {
                 let response = try JSONDecoder().decode(ResponseStatus.self, from: data)
                 if response.status == 0 {
-                    result = .failure(.server(response.err ?? "unknow error"))
+                    result = .failure(response.err ?? "unknow error")
                     semaphore.signal()
                     return
                 }
@@ -67,7 +68,7 @@ public extension Requestable
                 if let jsonString = data.jsonString {
                     print(jsonString)
                 }
-                result = .failure(.parse)
+                result = .failure("parse error")
                 semaphore.signal()
             }
         }.resume()
@@ -93,9 +94,9 @@ public extension Requestable
         return data
     }
     
-    func post() -> Result<Responsable, HTTPRequestError> {
+    func post() -> Result<Responsable, Error> {
         guard let url = URL(string: url) else {
-            return .failure(.url)
+            return .failure("url error")
         }
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = "POST"
@@ -104,13 +105,13 @@ public extension Requestable
         urlRequest.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         
         let bodyData = body(boundary:boundary)
-        var result: Result<Responsable, HTTPRequestError>!
+        var result: Result<Responsable, Error>!
         
         let semaphore = DispatchSemaphore(value: 0)
         URLSession.shared.uploadTask(with: urlRequest, from: bodyData) { data, response, error in
             print(url)
             if let error = error {
-                result = .failure(.server(error))
+                result = .failure(error)
                 return
             }
             
@@ -120,7 +121,7 @@ public extension Requestable
             }
             guard let json = try? JSONDecoder().decode(Responsable.self, from: data) else {
                 print(String(data: data, encoding: .utf8)!)
-                result = .failure(.parse)
+                result = .failure("parse error")
                 return
             }
             result = .success(json)
