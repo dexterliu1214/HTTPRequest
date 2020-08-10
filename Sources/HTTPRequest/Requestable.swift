@@ -21,7 +21,7 @@ public protocol Requestable {
     var queryItems:[URLQueryItem] { get }
     func body(boundary:String) -> Data
     func get() -> Future<Responsable, Error>
-    func post() -> Result<Responsable, Error>
+    func post() -> Future<Responsable, Error>
 }
 
 extension String:Error{}
@@ -54,10 +54,14 @@ public extension Requestable
                 guard let data = data else { return }
                 
                 do {
-                    let response = try JSONDecoder().decode(ResponseStatus.self, from: data)
-                    if response.status == 0 {
-                        promise(.failure(response.err ?? "unknow error"))
-                        return
+                    if let jsonString = data.jsonString {
+                        if jsonString.contains("status:") {
+                            let response = try JSONDecoder().decode(ResponseStatus.self, from: data)
+                            if response.status == 0 {
+                                promise(.failure(response.err ?? "unknow error"))
+                                return
+                            }
+                        }
                     }
                     
                     let obj = try JSONDecoder().decode(Responsable.self, from: data)
@@ -90,40 +94,37 @@ public extension Requestable
         return data
     }
     
-    func post() -> Result<Responsable, Error> {
-        guard let url = URL(string: url) else {
-            return .failure("url error")
-        }
-        var urlRequest = URLRequest(url: url)
-        urlRequest.httpMethod = "POST"
-        let boundary = UUID().uuidString
-        
-        urlRequest.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-        
-        let bodyData = body(boundary:boundary)
-        var result: Result<Responsable, Error>!
-        
-        let semaphore = DispatchSemaphore(value: 0)
-        URLSession.shared.uploadTask(with: urlRequest, from: bodyData) { data, response, error in
-            print(url)
-            if let error = error {
-                result = .failure(error)
-                return
+    func post() -> Future<Responsable, Error> {
+        Future<Responsable, Error> { promise in
+            guard let url = URL(string: url) else {
+                return promise(.failure("url error"))
             }
+            var urlRequest = URLRequest(url: url)
+            urlRequest.httpMethod = "POST"
+            let boundary = UUID().uuidString
             
-            guard let data = data else { return }
-            if let jsonString = data.jsonString {
-                print(jsonString)
-            }
-            guard let json = try? JSONDecoder().decode(Responsable.self, from: data) else {
-                print(String(data: data, encoding: .utf8)!)
-                result = .failure("parse error")
-                return
-            }
-            result = .success(json)
-            semaphore.signal()
-        }.resume()
-        _ = semaphore.wait(wallTimeout: .distantFuture)
-        return result
+            urlRequest.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+            
+            let bodyData = body(boundary:boundary)
+            
+            URLSession.shared.uploadTask(with: urlRequest, from: bodyData) { data, response, error in
+                print(url)
+                if let error = error {
+                    promise(.failure(error))
+                    return
+                }
+                
+                guard let data = data else { return }
+                if let jsonString = data.jsonString {
+                    print(jsonString)
+                }
+                guard let json = try? JSONDecoder().decode(Responsable.self, from: data) else {
+                    print(String(data: data, encoding: .utf8)!)
+                    promise(.failure("parse error"))
+                    return
+                }
+                promise(.success(json))
+            }.resume()
+        }
     }
 }
