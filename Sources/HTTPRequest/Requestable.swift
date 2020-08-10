@@ -20,7 +20,7 @@ public protocol Requestable {
     var url:String { get }
     var queryItems:[URLQueryItem] { get }
     func body(boundary:String) -> Data
-    func get() -> Result<Responsable, Error>
+    func get() -> Future<Responsable, Error>
     func post() -> Result<Responsable, Error>
 }
 
