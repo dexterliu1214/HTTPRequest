@@ -8,6 +8,7 @@
 
 import Foundation
 import UIKit
+import Combine
 
 struct ResponseStatus:Decodable {
     var status:Int
@@ -36,44 +37,39 @@ public extension Requestable
         }
     }
     
-    func get() -> Result<Responsable, Error> {
-        guard var uc = URLComponents(string: url) else {
-            return .failure("url error")
-        }
-        uc.queryItems = queryItems
-        var result: Result<Responsable, Error>!
-        guard let url = uc.url else { return  .failure("url error") }
-        let semaphore = DispatchSemaphore(value: 0)
-        print(url.absoluteURL)
-        URLSession.shared.dataTask(with: url) { (data, _, error) in
-            if let error = error {
-                result = .failure(error)
-                semaphore.signal()
-                return
+    func get() -> Future<Responsable, Error> {
+        Future<Responsable, Error> { promise in
+            guard var uc = URLComponents(string: url) else {
+                return promise(.failure("url error"))
             }
-            guard let data = data else { return }
+            uc.queryItems = queryItems
             
-            do {
-                let response = try JSONDecoder().decode(ResponseStatus.self, from: data)
-                if response.status == 0 {
-                    result = .failure(response.err ?? "unknow error")
-                    semaphore.signal()
+            guard let url = uc.url else { return  promise(.failure("url error")) }
+            print(url.absoluteURL)
+            URLSession.shared.dataTask(with: url) { (data, _, error) in
+                if let error = error {
+                    promise(.failure(error))
                     return
                 }
+                guard let data = data else { return }
                 
-                let obj = try JSONDecoder().decode(Responsable.self, from: data)
-                result = .success(obj)
-                semaphore.signal()
-            } catch {
-                if let jsonString = data.jsonString {
-                    print(jsonString)
+                do {
+                    let response = try JSONDecoder().decode(ResponseStatus.self, from: data)
+                    if response.status == 0 {
+                        promise(.failure(response.err ?? "unknow error"))
+                        return
+                    }
+                    
+                    let obj = try JSONDecoder().decode(Responsable.self, from: data)
+                    promise(.success(obj))
+                } catch {
+                    if let jsonString = data.jsonString {
+                        print(jsonString)
+                    }
+                    promise(.failure("parse error"))
                 }
-                result = .failure("parse error")
-                semaphore.signal()
-            }
-        }.resume()
-        _ = semaphore.wait(wallTimeout: .distantFuture)
-        return result
+            }.resume()
+        }
     }
     
     func body(boundary:String) -> Data {
