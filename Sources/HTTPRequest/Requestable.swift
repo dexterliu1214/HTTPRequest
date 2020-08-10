@@ -37,7 +37,7 @@ public extension Requestable
         }
     }
     
-    func get() -> Future<Responsable, Error> {
+    func get() -> AnyPublisher<Responsable, Error> {
         Future<Responsable, Error> { promise in
             guard var uc = URLComponents(string: url) else {
                 return promise(.failure("url error"))
@@ -74,6 +74,8 @@ public extension Requestable
                 }
             }.resume()
         }
+        .receive(on: DispatchQueue.main)
+        .eraseToAnyPublisher()
     }
     
     func body(boundary:String) -> Data {
@@ -94,7 +96,7 @@ public extension Requestable
         return data
     }
     
-    func post() -> Future<Responsable, Error> {
+    func post() -> AnyPublisher<Responsable, Error> {
         Future<Responsable, Error> { promise in
             guard let url = URL(string: url) else {
                 return promise(.failure("url error"))
@@ -126,5 +128,7 @@ public extension Requestable
                 promise(.success(json))
             }.resume()
         }
+        .receive(on: DispatchQueue.main)
+        .eraseToAnyPublisher()
     }
 }
