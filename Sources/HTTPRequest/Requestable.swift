@@ -55,7 +55,7 @@ public extension Requestable
                 
                 do {
                     if let jsonString = data.jsonString {
-                        if jsonString.contains("\"status\":") {
+                        if jsonString.contains("\"status\"") {
                             let response = try JSONDecoder().decode(ResponseStatus.self, from: data)
                             if response.status == 0 {
                                 promise(.failure(response.err ?? "unknow error"))
