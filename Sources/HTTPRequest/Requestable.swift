@@ -54,8 +54,8 @@ public extension Requestable
                 guard let data = data else { return }
                 
                 do {
-                    if let jsonString = data.jsonString {
-                        if jsonString.contains("\"status\"") {
+                    if let jsonString = String(data:data, encoding: .utf8) {
+                        if jsonString.contains("\"status\":") {
                             let response = try JSONDecoder().decode(ResponseStatus.self, from: data)
                             if response.status == 0 {
                                 promise(.failure(response.err ?? "unknow error"))
