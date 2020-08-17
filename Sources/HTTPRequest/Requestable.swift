@@ -16,6 +16,7 @@ struct ResponseStatus:Decodable {
 }
 
 public protocol Requestable {
+    static var headers:[String:String] { get }
     associatedtype Responsable: Decodable
     var url:String { get }
     var queryItems:[URLQueryItem] { get }
@@ -30,14 +31,16 @@ extension String: LocalizedError {
 }
 
 public extension Requestable
-{    
+{
+    static var headers:[String:String] { [:] }
+    
     var queryItems:[URLQueryItem] {
         Mirror(reflecting: self).children.map{
             URLQueryItem(name: $0.label!, value: ($0.value as! String))
         }
     }
     
-    func get(_ headers:[String:String] = [:]) -> AnyPublisher<Responsable, Error> {
+    func get() -> AnyPublisher<Responsable, Error> {
         Future<Responsable, Error> { promise in
             guard var uc = URLComponents(string: url) else {
                 return promise(.failure("url error"))
@@ -49,7 +52,7 @@ public extension Requestable
             print(url.absoluteURL)
             
             var request = URLRequest(url: url)
-            headers.forEach { (key, value) in
+            Self.headers.forEach { (key, value) in
                 request.setValue(value, forHTTPHeaderField: key)
             }
             
