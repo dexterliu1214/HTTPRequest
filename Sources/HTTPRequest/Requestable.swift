@@ -30,14 +30,14 @@ extension String: LocalizedError {
 }
 
 public extension Requestable
-{
+{    
     var queryItems:[URLQueryItem] {
         Mirror(reflecting: self).children.map{
             URLQueryItem(name: $0.label!, value: ($0.value as! String))
         }
     }
     
-    func get() -> AnyPublisher<Responsable, Error> {
+    func get(_ headers:[String:String] = [:]) -> AnyPublisher<Responsable, Error> {
         Future<Responsable, Error> { promise in
             guard var uc = URLComponents(string: url) else {
                 return promise(.failure("url error"))
@@ -45,8 +45,15 @@ public extension Requestable
             uc.queryItems = queryItems
             
             guard let url = uc.url else { return  promise(.failure("url error")) }
+        
             print(url.absoluteURL)
-            URLSession.shared.dataTask(with: url) { (data, _, error) in
+            
+            var request = URLRequest(url: url)
+            headers.forEach { (key, value) in
+                request.setValue(value, forHTTPHeaderField: key)
+            }
+            
+            URLSession.shared.dataTask(with: request){ (data, _, error) in
                 if let error = error {
                     promise(.failure(error))
                     return
