@@ -21,8 +21,8 @@ public protocol Requestable {
     var url:String { get }
     var queryItems:[URLQueryItem] { get }
     func body(boundary:String) -> Data
-    func get() -> AnyPublisher<Responsable, Error>
-    func post() -> AnyPublisher<Responsable, Error>
+    func get() -> AnyPublisher<Responsable, URLError>
+    func post() -> AnyPublisher<Responsable, URLError>
 }
 
 extension String:Error{}
@@ -40,14 +40,14 @@ public extension Requestable
         }
     }
     
-    func get() -> AnyPublisher<Responsable, Error> {
-        Future<Responsable, Error> { promise in
+    func get() -> AnyPublisher<Responsable, URLError> {
+        Future<Responsable, URLError> { promise in
             guard var uc = URLComponents(string: url) else {
-                return promise(.failure("url error"))
+                return promise(.failure(URLError(URLError.Code.badURL)))
             }
             uc.queryItems = queryItems
             
-            guard let url = uc.url else { return  promise(.failure("url error")) }
+            guard let url = uc.url else { return  promise(.failure(URLError(URLError.Code.badURL))) }
         
             print(url.absoluteURL)
             
@@ -58,7 +58,7 @@ public extension Requestable
             
             URLSession.shared.dataTask(with: request){ (data, _, error) in
                 if let error = error {
-                    promise(.failure(error))
+                    promise(.failure(URLError.init(URLError.Code.unknown, userInfo: ["info": error.localizedDescription])))
                     return
                 }
                 guard let data = data else { return }
@@ -68,7 +68,7 @@ public extension Requestable
                         if jsonString.contains("\"status\":") {
                             let response = try JSONDecoder().decode(ResponseStatus.self, from: data)
                             if response.status == 0 {
-                                promise(.failure(response.err ?? "unknow error"))
+                                promise(.failure(URLError.init(URLError.Code.unknown, userInfo: ["info": response.err ?? "unknow"])))
                                 return
                             }
                         }
@@ -79,8 +79,8 @@ public extension Requestable
                 } catch {
                     if let jsonString = data.jsonString {
                         print(jsonString)
+                        promise(.failure(URLError.init(URLError.Code.cannotParseResponse, userInfo: ["info": jsonString])))
                     }
-                    promise(.failure("parse error"))
                 }
             }.resume()
         }
@@ -106,10 +106,10 @@ public extension Requestable
         return data
     }
     
-    func post() -> AnyPublisher<Responsable, Error> {
-        Future<Responsable, Error> { promise in
+    func post() -> AnyPublisher<Responsable, URLError> {
+        Future<Responsable, URLError> { promise in
             guard let url = URL(string: url) else {
-                return promise(.failure("url error"))
+                return promise(.failure(URLError(URLError.Code.badURL)))
             }
             var urlRequest = URLRequest(url: url)
             urlRequest.httpMethod = "POST"
@@ -122,7 +122,7 @@ public extension Requestable
             URLSession.shared.uploadTask(with: urlRequest, from: bodyData) { data, response, error in
                 print(url)
                 if let error = error {
-                    promise(.failure(error))
+                    promise(.failure(URLError(URLError.Code.unknown, userInfo: ["info": error.localizedDescription])))
                     return
                 }
                 
@@ -131,8 +131,8 @@ public extension Requestable
                     print(jsonString)
                 }
                 guard let json = try? JSONDecoder().decode(Responsable.self, from: data) else {
-                    print(String(data: data, encoding: .utf8)!)
-                    promise(.failure("parse error"))
+                    let str = String(data: data, encoding: .utf8)!
+                    promise(.failure(URLError(URLError.Code.cannotParseResponse, userInfo: ["info": str])))
                     return
                 }
                 promise(.success(json))
