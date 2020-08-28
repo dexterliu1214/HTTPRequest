@@ -21,8 +21,10 @@ public protocol Requestable {
     var url:String { get }
     var queryItems:[URLQueryItem] { get }
     func body(boundary:String) -> Data
-    func get() -> AnyPublisher<Responsable, URLError>
-    func post() -> AnyPublisher<Responsable, URLError>
+    func get(_ callback:@escaping(Result<Responsable, URLError>) -> ())
+    func get() -> AnyPublisher<Responsable,URLError>
+    func post(_ callback:@escaping(Result<Responsable, URLError>) -> ())
+    func post() -> AnyPublisher<Responsable,URLError>
 }
 
 extension String:Error{}
@@ -40,25 +42,33 @@ public extension Requestable
         }
     }
     
-    func get() -> AnyPublisher<Responsable, URLError> {
+    func get() -> AnyPublisher<Responsable,URLError> {
         Future<Responsable, URLError> { promise in
-            guard var uc = URLComponents(string: url) else {
-                return promise(.failure(URLError(URLError.Code.badURL)))
-            }
-            uc.queryItems = queryItems
-            
-            guard let url = uc.url else { return  promise(.failure(URLError(URLError.Code.badURL))) }
+            get(promise)
+        }
+        .receive(on: DispatchQueue.main)
+        .eraseToAnyPublisher()
+    }
+    
+    func get(_ callback:@escaping(Result<Responsable, URLError>) -> ()) {
+        guard var uc = URLComponents(string: url) else {
+            return callback(.failure(URLError(URLError.Code.badURL)))
+        }
+        uc.queryItems = queryItems
         
-            print(url.absoluteURL)
-            
-            var request = URLRequest(url: url)
-            Self.headers.forEach { (key, value) in
-                request.setValue(value, forHTTPHeaderField: key)
-            }
-            
-            URLSession.shared.dataTask(with: request){ (data, _, error) in
+        guard let url = uc.url else { return  callback(.failure(URLError(URLError.Code.badURL))) }
+    
+        print(url.absoluteURL)
+        
+        var request = URLRequest(url: url)
+        Self.headers.forEach { (key, value) in
+            request.setValue(value, forHTTPHeaderField: key)
+        }
+        
+        URLSession.shared.dataTask(with: request){ (data, _, error) in
+            DispatchQueue.main.async {
                 if let error = error {
-                    promise(.failure(URLError.init(URLError.Code.unknown, userInfo: ["info": error.localizedDescription])))
+                    callback(.failure(URLError.init(URLError.Code.unknown, userInfo: ["info": error.localizedDescription])))
                     return
                 }
                 guard let data = data else { return }
@@ -68,24 +78,22 @@ public extension Requestable
                         if jsonString.contains("\"status\":") {
                             let response = try JSONDecoder().decode(ResponseStatus.self, from: data)
                             if response.status == 0 {
-                                promise(.failure(URLError.init(URLError.Code.unknown, userInfo: ["info": response.err ?? "unknow"])))
+                                callback(.failure(URLError.init(URLError.Code.unknown, userInfo: ["info": response.err ?? "unknow"])))
                                 return
                             }
                         }
                     }
                     
                     let obj = try JSONDecoder().decode(Responsable.self, from: data)
-                    promise(.success(obj))
+                    callback(.success(obj))
                 } catch {
                     if let jsonString = data.jsonString {
                         print(jsonString)
-                        promise(.failure(URLError.init(URLError.Code.cannotParseResponse, userInfo: ["info": jsonString])))
+                        callback(.failure(URLError.init(URLError.Code.cannotParseResponse, userInfo: ["info": jsonString])))
                     }
                 }
-            }.resume()
-        }
-        .receive(on: DispatchQueue.main)
-        .eraseToAnyPublisher()
+            }
+        }.resume()
     }
     
     func body(boundary:String) -> Data {
@@ -106,23 +114,31 @@ public extension Requestable
         return data
     }
     
-    func post() -> AnyPublisher<Responsable, URLError> {
+    func post() -> AnyPublisher<Responsable,URLError> {
         Future<Responsable, URLError> { promise in
-            guard let url = URL(string: url) else {
-                return promise(.failure(URLError(URLError.Code.badURL)))
-            }
-            var urlRequest = URLRequest(url: url)
-            urlRequest.httpMethod = "POST"
-            let boundary = UUID().uuidString
-            
-            urlRequest.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-            
-            let bodyData = body(boundary:boundary)
-            
-            URLSession.shared.uploadTask(with: urlRequest, from: bodyData) { data, response, error in
+            post(promise)
+        }
+        .receive(on: DispatchQueue.main)
+        .eraseToAnyPublisher()
+    }
+    
+    func post(_ callback:@escaping(Result<Responsable, URLError>) -> ()) {
+        guard let url = URL(string: url) else {
+            return callback(.failure(URLError(URLError.Code.badURL)))
+        }
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "POST"
+        let boundary = UUID().uuidString
+        
+        urlRequest.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        
+        let bodyData = body(boundary:boundary)
+        
+        URLSession.shared.uploadTask(with: urlRequest, from: bodyData) { data, response, error in
+            DispatchQueue.main.async {
                 print(url)
                 if let error = error {
-                    promise(.failure(URLError(URLError.Code.unknown, userInfo: ["info": error.localizedDescription])))
+                    callback(.failure(URLError(URLError.Code.unknown, userInfo: ["info": error.localizedDescription])))
                     return
                 }
                 
@@ -132,13 +148,11 @@ public extension Requestable
                 }
                 guard let json = try? JSONDecoder().decode(Responsable.self, from: data) else {
                     let str = String(data: data, encoding: .utf8)!
-                    promise(.failure(URLError(URLError.Code.cannotParseResponse, userInfo: ["info": str])))
+                    callback(.failure(URLError(URLError.Code.cannotParseResponse, userInfo: ["info": str])))
                     return
                 }
-                promise(.success(json))
-            }.resume()
-        }
-        .receive(on: DispatchQueue.main)
-        .eraseToAnyPublisher()
+                callback(.success(json))
+            }
+        }.resume()
     }
 }
