@@ -44,7 +44,7 @@ public extension Requestable
     
     func get() -> AnyPublisher<Responsable,URLError> {
         Future<Responsable, URLError> { promise in
-            get(promise)
+            self.get(promise)
         }
         .receive(on: DispatchQueue.main)
         .eraseToAnyPublisher()
@@ -116,7 +116,7 @@ public extension Requestable
     
     func post() -> AnyPublisher<Responsable,URLError> {
         Future<Responsable, URLError> { promise in
-            post(promise)
+            self.post(promise)
         }
         .receive(on: DispatchQueue.main)
         .eraseToAnyPublisher()
