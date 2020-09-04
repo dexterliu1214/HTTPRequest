@@ -21,10 +21,10 @@ public protocol Requestable {
     var url:String { get }
     var queryItems:[URLQueryItem] { get }
     func body(boundary:String) -> Data
-    func get(_ callback:@escaping(Result<Responsable, URLError>) -> ())
-    func get() -> AnyPublisher<Responsable,URLError>
-    func post(_ callback:@escaping(Result<Responsable, URLError>) -> ())
-    func post() -> AnyPublisher<Responsable,URLError>
+    func get(_ callback:@escaping(Result<Responsable, Error>) -> ())
+    func get() -> AnyPublisher<Responsable, Error>
+    func post(_ callback:@escaping(Result<Responsable, Error>) -> ())
+    func post() -> AnyPublisher<Responsable, Error>
 }
 
 extension String:Error{}
@@ -42,15 +42,15 @@ public extension Requestable
         }
     }
     
-    func get() -> AnyPublisher<Responsable,URLError> {
-        Future<Responsable, URLError> { promise in
+    func get() -> AnyPublisher<Responsable, Error> {
+        Future<Responsable, Error> { promise in
             self.get(promise)
         }
         .receive(on: DispatchQueue.main)
         .eraseToAnyPublisher()
     }
     
-    func get(_ callback:@escaping(Result<Responsable, URLError>) -> ()) {
+    func get(_ callback:@escaping(Result<Responsable, Error>) -> ()) {
         guard var uc = URLComponents(string: url) else {
             return callback(.failure(URLError(URLError.Code.badURL)))
         }
@@ -68,7 +68,7 @@ public extension Requestable
         URLSession.shared.dataTask(with: request){ (data, _, error) in
             DispatchQueue.main.async {
                 if let error = error {
-                    callback(.failure(URLError.init(URLError.Code.unknown, userInfo: ["info": error.localizedDescription])))
+                    callback(.failure(error))
                     return
                 }
                 guard let data = data else { return }
@@ -78,7 +78,7 @@ public extension Requestable
                         if jsonString.contains("\"status\":") {
                             let response = try JSONDecoder().decode(ResponseStatus.self, from: data)
                             if response.status == 0 {
-                                callback(.failure(URLError.init(URLError.Code.unknown, userInfo: ["info": response.err ?? "unknow"])))
+                                callback(.failure(response.err ?? "unknow"))
                                 return
                             }
                         }
@@ -89,7 +89,7 @@ public extension Requestable
                 } catch {
                     if let jsonString = data.jsonString {
                         print(jsonString)
-                        callback(.failure(URLError.init(URLError.Code.cannotParseResponse, userInfo: ["info": jsonString])))
+                        callback(.failure(URLError(URLError.Code.cannotParseResponse)))
                     }
                 }
             }
@@ -114,15 +114,15 @@ public extension Requestable
         return data
     }
     
-    func post() -> AnyPublisher<Responsable,URLError> {
-        Future<Responsable, URLError> { promise in
+    func post() -> AnyPublisher<Responsable,Error> {
+        Future<Responsable, Error> { promise in
             self.post(promise)
         }
         .receive(on: DispatchQueue.main)
         .eraseToAnyPublisher()
     }
     
-    func post(_ callback:@escaping(Result<Responsable, URLError>) -> ()) {
+    func post(_ callback:@escaping(Result<Responsable, Error>) -> ()) {
         guard let url = URL(string: url) else {
             return callback(.failure(URLError(URLError.Code.badURL)))
         }
@@ -138,7 +138,7 @@ public extension Requestable
             DispatchQueue.main.async {
                 print(url)
                 if let error = error {
-                    callback(.failure(URLError(URLError.Code.unknown, userInfo: ["info": error.localizedDescription])))
+                    callback(.failure(error))
                     return
                 }
                 
@@ -148,7 +148,8 @@ public extension Requestable
                 }
                 guard let json = try? JSONDecoder().decode(Responsable.self, from: data) else {
                     let str = String(data: data, encoding: .utf8)!
-                    callback(.failure(URLError(URLError.Code.cannotParseResponse, userInfo: ["info": str])))
+                    print(str)
+                    callback(.failure(URLError(URLError.Code.cannotParseResponse)))
                     return
                 }
                 callback(.success(json))
