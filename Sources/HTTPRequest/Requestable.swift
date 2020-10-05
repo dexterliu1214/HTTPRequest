@@ -66,11 +66,13 @@ public extension Requestable
         }
         
         URLSession.shared.dataTask(with: request){ (data, _, error) in
-            DispatchQueue.main.async {
-                if let error = error {
+            if let error = error {
+                DispatchQueue.main.async {
                     callback(.failure(error))
-                    return
                 }
+                return
+            }
+            DispatchQueue.main.async {
                 guard let data = data else { return }
                 
                 do {
