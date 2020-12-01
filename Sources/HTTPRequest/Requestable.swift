@@ -91,8 +91,8 @@ public extension Requestable
                 } catch {
                     if let jsonString = data.jsonString {
                         print(jsonString)
-                        callback(.failure(URLError(URLError.Code.cannotParseResponse)))
                     }
+                    callback(.failure(URLError(URLError.Code.cannotParseResponse)))
                 }
             }
         }.resume()
